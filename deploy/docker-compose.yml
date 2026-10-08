@@ -1,0 +1,84 @@
+# Encryptoglyph skeleton. Data services stay on the internal network.
+# Only eg-api and eg-console join the external proxy-net for Traefik.
+# Secrets come from env_file (.env, gitignored). No host ports.
+
+services:
+  openbao:
+    image: openbao/openbao@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
+    # openbao/openbao:2.7.1
+    cap_add:
+      - IPC_LOCK
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    command: ["server", "-config=/openbao/config/config.hcl"]
+    env_file:
+      - .env
+    volumes:
+      - openbao-data:/openbao/data
+      - ./openbao/config.hcl:/openbao/config/config.hcl:ro
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:16
+    env_file:
+      - .env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  eg-api:
+    build:
+      context: ../api
+      dockerfile: Dockerfile
+    image: encryptoglyph-api:local
+    env_file:
+      - .env
+    networks:
+      - internal
+      - proxy-net
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy-net
+      traefik.http.routers.eg-api.rule: Host(`eg-api.home.arpa`)
+      traefik.http.routers.eg-api.entrypoints: websecure
+      traefik.http.routers.eg-api.tls: "true"
+      traefik.http.services.eg-api.loadbalancer.server.port: "8000"
+
+  eg-console:
+    image: encryptoglyph-console:placeholder
+    env_file:
+      - .env
+    networks:
+      - proxy-net
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: proxy-net
+      traefik.http.routers.eg-console.rule: Host(`eg.home.arpa`)
+      traefik.http.routers.eg-console.entrypoints: websecure
+      traefik.http.routers.eg-console.tls: "true"
+      traefik.http.services.eg-console.loadbalancer.server.port: "80"
+
+  rest-server:
+    image: restic/rest-server:0.14.0
+    env_file:
+      - .env
+    volumes:
+      - restic-data:/data
+    networks:
+      - internal
+
+networks:
+  internal:
+    internal: true
+  proxy-net:
+    external: true
+    name: proxy-net
+
+volumes:
+  openbao-data:
+  postgres-data:
+  restic-data:
