@@ -1,5 +1,7 @@
 # Third-party notices
 
+Third-party components stay under their own licenses.
+
 Encryptoglyph runs the following third-party software unmodified. Attribute them here. Do not brand GoDesk software as OpenBao or restic.
 
 ## OpenBao
