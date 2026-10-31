@@ -19,6 +19,8 @@ from eg_crypto import (
     needs_rewrap,
     parse_header,
     rewrap,
+    encrypt_v2,
+    VERSION_V3,
     verify_blind_index,
 )
 
@@ -30,9 +32,9 @@ def kr():
     return Keyring({"k1": Keyring.generate_key()}, "k1")
 
 
-def test_roundtrip_v2_default(kr):
+def test_roundtrip_v3_default(kr):
     blob = encrypt(kr, CTX, b"secret")
-    assert parse_header(blob)[0] == VERSION_V2
+    assert parse_header(blob)[0] == VERSION_V3
     assert len(parse_header(blob)[3]) == 24
     assert decrypt(kr, CTX, blob) == b"secret"
 
@@ -74,9 +76,9 @@ def test_legacy_decrypt_and_upgrade(kr):
     assert decrypt(kr, CTX, old) == b"legacy"
     assert needs_rewrap(kr, old)
     new = rewrap(kr, CTX, old)
-    assert parse_header(new)[0] == VERSION_V2
+    assert parse_header(new)[0] == VERSION_V3
     assert not needs_rewrap(kr, new)
-    assert decrypt(kr, CTX, new, min_version=VERSION_V2) == b"legacy"
+    assert decrypt(kr, CTX, new, min_version=VERSION_V3) == b"legacy"
 
 
 def test_downgrade_guard(kr):
@@ -153,6 +155,44 @@ def test_shared_vectors():
     v = json.loads((Path(__file__).parents[2] / "testvectors/envelope.json").read_text())
     kr = Keyring({v["kid"]: bytes.fromhex(v["key_hex"])}, v["kid"])
     ctx = RecordContext(*v["ctx"])
-    for f in ("v2_hex", "v1_hex"):
+    for f in ("v3_hex", "v2_hex", "v1_hex"):
         assert decrypt(kr, ctx, bytes.fromhex(v[f])) == v["plaintext"].encode()
     assert blind_index(bytes.fromhex(v["key_hex"]), "tenant-a", "email", "Foo@Example.com").hex() == v["blind_index_hex"]
+
+
+# --- v3 key commitment -------------------------------------------------------
+
+def test_v2_still_decrypts_and_upgrades_to_v3(kr):
+    old = encrypt_v2(kr, CTX, b"v2 data")
+    assert parse_header(old)[0] == VERSION_V2
+    assert decrypt(kr, CTX, old) == b"v2 data"
+    assert needs_rewrap(kr, old)
+    assert parse_header(rewrap(kr, CTX, old))[0] == VERSION_V3
+    with pytest.raises(DowngradeError):
+        decrypt(kr, CTX, old, min_version=VERSION_V3)
+
+
+def test_commitment_tamper_rejected(kr):
+    blob = bytearray(encrypt(kr, CTX, b"secret"))
+    off = len(parse_header(bytes(blob))[4])
+    for i in (off, off + 31):
+        b = bytearray(blob)
+        b[i] ^= 0x80
+        with pytest.raises(DecryptError):
+            decrypt(kr, CTX, bytes(b))
+
+
+def test_commitment_differs_per_key(kr):
+    """Same nonce/header/context under two keys -> different commitments (key is bound)."""
+    from eg_crypto.envelope import _commit_keys, _commitment
+    nonce, aad = b"n" * 24, b"aad"
+    c1 = _commitment(_commit_keys(b"a" * 32, nonce)[1], aad)
+    c2 = _commitment(_commit_keys(b"b" * 32, nonce)[1], aad)
+    assert c1 != c2 and len(c1) == 32
+
+
+def test_v3_truncated_into_commitment(kr):
+    blob = encrypt(kr, CTX, b"x")
+    hdr_len = len(parse_header(blob)[4])
+    with pytest.raises(DecryptError):
+        decrypt(kr, CTX, blob[: hdr_len + 40])
