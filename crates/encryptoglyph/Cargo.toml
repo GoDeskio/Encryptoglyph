@@ -1,0 +1,26 @@
+[package]
+name = "encryptoglyph"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Proprietary"
+publish = false
+description = "Encryptoglyph shared crypto core: versioned XChaCha20-Poly1305 envelope"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+default = []
+wasm = ["dep:wasm-bindgen", "getrandom/js"]
+
+[dependencies]
+chacha20poly1305 = "0.10"
+aes-gcm = "0.10"
+hkdf = "0.12"
+hmac = "0.12"
+sha2 = "0.10"
+argon2 = "0.5"
+subtle = "2.6"
+zeroize = { version = "1.8", features = ["derive"] }
+getrandom = "0.2"
+wasm-bindgen = { version = "0.2", optional = true }

@@ -1,0 +1,16 @@
+{
+ "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+ "kid": "kv1",
+ "ctx": [
+  "tenant-a",
+  "field-enc",
+  "users",
+  "42",
+  "ssn",
+  1
+ ],
+ "plaintext": "hello encryptoglyph",
+ "v2_hex": "45470202036b7631fc41a9afe34570b5d15dc51deedb5554874dc0951b7f4cb033441f556e6f9465f4a13299a2e5ab0b5d9804682e0be6b8e422b99c8087a59e5e9d04",
+ "v1_hex": "45470101036b76319b50b1ecf9858d9b8419552187a22fdf86d1cf0e84a99afbf5eb56479f2c8488711bc383586aac78da2fd450f1339f",
+ "blind_index_hex": "cf47f7290b8c85c766cdc88a699e2d8c"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@godesk/encryptoglyph",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build:wasm": "wasm-pack build ../../crates/encryptoglyph --target bundler --out-dir ../../bindings/ts/pkg -- --features wasm",
+    "build": "tsc -p ."
+  }
+}
