@@ -17,6 +17,7 @@ use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
 pub mod ff1;
+pub mod token;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
