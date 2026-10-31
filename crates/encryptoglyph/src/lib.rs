@@ -16,6 +16,8 @@ use std::collections::BTreeMap;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
+pub mod index;
+
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
