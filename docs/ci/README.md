@@ -1,3 +1,5 @@
-# Rust core CI job (pending)
+# Rust core CI job
 
-The bot token lacks the GitHub `workflow` scope, so it cannot edit `.github/workflows/`. To enable the job, someone with that scope runs `git apply docs/ci/rust-core-job.patch` and commits. The job runs cargo test, clippy -D warnings and cargo deny check, using `crates/encryptoglyph/deny.toml`.
+The `rust-core` job in `.github/workflows/ci.yml` runs `cargo test --locked`, `cargo clippy --locked --all-targets -- -D warnings`, and `cargo deny check` from `crates/encryptoglyph`, using `crates/encryptoglyph/deny.toml`.
+
+`docs/ci/rust-core-job.patch` is the diff that added the job. It is already applied.

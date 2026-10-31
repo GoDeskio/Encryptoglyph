@@ -79,3 +79,31 @@ jobs:
 
       - name: Exposure probe against the api container
         run: bash scripts/assert-exposure.sh
+
+  rust-core:
+    name: rust-core
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: crates/encryptoglyph
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Toolchain
+        run: rustup toolchain install stable --profile minimal -c clippy && rustup default stable
+
+      - name: Test
+        run: cargo test --locked
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Licenses, advisories, bans and sources
+        run: cargo deny check
+
