@@ -1,0 +1,26 @@
+# cargo-deny policy for the Encryptoglyph core (backlog #1, license guardrails in docs/COMPETITOR-SCAN.md section 4).
+[graph]
+all-features = false
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+confidence-threshold = 0.9
+allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Unicode-DFS-2016", "Zlib", "MPL-2.0", "CC0-1.0"]
+
+[[licenses.exceptions]]
+# Our own crate is proprietary.
+allow = ["LicenseRef-Proprietary"]
+crate = "encryptoglyph"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
