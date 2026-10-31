@@ -36,10 +36,17 @@ from nacl.exceptions import CryptoError
 MAGIC = b"EG"
 VERSION_LEGACY = 1
 VERSION_V2 = 2
+VERSION_V3 = 3
 ALG_AES256GCM = 1
 ALG_XCHACHA20POLY1305 = 2
-_NONCE_LEN = {ALG_AES256GCM: 12, ALG_XCHACHA20POLY1305: 24}
-_VERSION_ALG = {VERSION_LEGACY: ALG_AES256GCM, VERSION_V2: ALG_XCHACHA20POLY1305}
+ALG_XCHACHA20POLY1305_COMMIT = 3
+_COMMIT_LEN = 32
+_NONCE_LEN = {ALG_AES256GCM: 12, ALG_XCHACHA20POLY1305: 24, ALG_XCHACHA20POLY1305_COMMIT: 24}
+_VERSION_ALG = {
+    VERSION_LEGACY: ALG_AES256GCM,
+    VERSION_V2: ALG_XCHACHA20POLY1305,
+    VERSION_V3: ALG_XCHACHA20POLY1305_COMMIT,
+}
 KEY_LEN = 32
 _HKDF_SALT = b"encryptoglyph/hkdf-salt/v2"
 
@@ -143,15 +150,44 @@ def parse_header(blob: bytes) -> tuple[int, int, str, bytes, bytes, bytes]:
         n = _NONCE_LEN[alg]
         off = 5 + klen
         nonce = blob[off:off + n]
-        if len(nonce) != n or len(blob) < off + n + 16:
+        extra = _COMMIT_LEN if alg == ALG_XCHACHA20POLY1305_COMMIT else 0
+        if len(nonce) != n or len(blob) < off + n + extra + 16:
             raise ValueError
         return version, alg, kid, nonce, blob[:off + n], blob[off + n:]
     except (ValueError, IndexError, KeyError, UnicodeDecodeError):
         raise DecryptError("decryption failed") from None
 
 
+def _commit_keys(dek: bytes, nonce: bytes) -> tuple[bytes, bytes]:
+    """v3 key commitment: split the DEK into an AEAD key and a commitment key (HKDF, salt=nonce)."""
+    def h(label: bytes) -> bytes:
+        return HKDF(algorithm=hashes.SHA256(), length=KEY_LEN, salt=nonce, info=label).derive(dek)
+    return h(b"encryptoglyph/v3/enc"), h(b"encryptoglyph/v3/commit")
+
+
+def _commitment(commit_key: bytes, aad: bytes) -> bytes:
+    return hmac.new(commit_key, b"EGCMT1" + aad, hashlib.sha256).digest()
+
+
 def encrypt(keyring: Keyring, ctx: RecordContext, plaintext: bytes) -> bytes:
-    """Encrypt with the default v2 envelope (XChaCha20-Poly1305, 192-bit random nonce)."""
+    """Encrypt with the default v3 envelope: XChaCha20-Poly1305 plus a 32-byte key commitment.
+
+    Body = commitment || ct || tag. The commitment binds the key, nonce, header and context, so
+    one ciphertext cannot decrypt validly under two different keys (no partitioning-oracle or
+    "invisible salamander" attacks).
+    """
+    alg = ALG_XCHACHA20POLY1305_COMMIT
+    dek = keyring.derive(keyring.current, ctx.purpose, ctx.tenant, alg)
+    nonce = os.urandom(24)
+    hdr = _header(VERSION_V3, alg, keyring.current, nonce)
+    aad = hdr + ctx.aad()
+    enc_key, commit_key = _commit_keys(dek, nonce)
+    ct = sodium.crypto_aead_xchacha20poly1305_ietf_encrypt(plaintext, aad, nonce, enc_key)
+    return hdr + _commitment(commit_key, aad) + ct
+
+
+def encrypt_v2(keyring: Keyring, ctx: RecordContext, plaintext: bytes) -> bytes:
+    """v2 envelope (XChaCha20-Poly1305, no key commitment). For tests/interop; read-compatible."""
     alg = ALG_XCHACHA20POLY1305
     key = keyring.derive(keyring.current, ctx.purpose, ctx.tenant, alg)
     nonce = os.urandom(24)
@@ -176,6 +212,11 @@ def decrypt(keyring: Keyring, ctx: RecordContext, blob: bytes, *, min_version: i
     key = keyring.derive(kid, ctx.purpose, ctx.tenant, alg)
     aad = hdr + ctx.aad()
     try:
+        if alg == ALG_XCHACHA20POLY1305_COMMIT:
+            enc_key, commit_key = _commit_keys(key, nonce)
+            if not hmac.compare_digest(body[:_COMMIT_LEN], _commitment(commit_key, aad)):
+                raise DecryptError("decryption failed")
+            return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(body[_COMMIT_LEN:], aad, nonce, enc_key)
         if alg == ALG_XCHACHA20POLY1305:
             return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(body, aad, nonce, key)
         return AESGCM(key).decrypt(nonce, body, aad)
@@ -185,14 +226,14 @@ def decrypt(keyring: Keyring, ctx: RecordContext, blob: bytes, *, min_version: i
 
 def needs_rewrap(keyring: Keyring, blob: bytes) -> bool:
     version, _alg, kid, *_ = parse_header(blob)
-    return version < VERSION_V2 or kid != keyring.current
+    return version < VERSION_V3 or kid != keyring.current
 
 
 def rewrap(keyring: Keyring, ctx: RecordContext, blob: bytes, *, new_ctx: RecordContext | None = None) -> bytes:
-    """Decrypt (any supported version/key) and re-encrypt as v2 under the current key.
+    """Decrypt (any supported version/key) and re-encrypt as v3 under the current key.
 
     Use on unlock/read ("upgrade on unlock") and in bulk rotation jobs. Once every record
-    is v2 under the new key, callers should set ``min_version=VERSION_V2`` and retire old keys.
+    is v3 under the new key, callers should set ``min_version=VERSION_V3`` and retire old keys.
     """
     return encrypt(keyring, new_ctx or ctx, decrypt(keyring, ctx, blob))
 

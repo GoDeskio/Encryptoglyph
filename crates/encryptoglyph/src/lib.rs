@@ -1,7 +1,8 @@
 //! Encryptoglyph shared crypto core. Wire-compatible with `api/eg_crypto` (Python).
 //!
 //! Envelope: `b"EG" | ver u8 | alg u8 | kid_len u8 | kid | nonce | ct||tag`.
-//! v2 = XChaCha20-Poly1305 (24-byte nonce, default). v1 = AES-256-GCM (legacy decrypt).
+//! v3 = XChaCha20-Poly1305 + 32-byte key commitment (default; body = commitment || ct||tag).
+//! v2 = XChaCha20-Poly1305 (24-byte nonce, no commitment; decrypt + upgrade). v1 = AES-256-GCM (legacy decrypt).
 //! AAD = full header || canonical record context. Keys: HKDF-SHA256 per kid/purpose/tenant/alg.
 //! Zero-knowledge: no escrow or override key exists here.
 #![forbid(unsafe_code)]
@@ -22,8 +23,11 @@ pub mod wasm;
 pub const MAGIC: &[u8; 2] = b"EG";
 pub const VERSION_LEGACY: u8 = 1;
 pub const VERSION_V2: u8 = 2;
+pub const VERSION_V3: u8 = 3;
 pub const ALG_AES256GCM: u8 = 1;
 pub const ALG_XCHACHA20POLY1305: u8 = 2;
+pub const ALG_XCHACHA20POLY1305_COMMIT: u8 = 3;
+pub const COMMIT_LEN: usize = 32;
 pub const KEY_LEN: usize = 32;
 const HKDF_SALT: &[u8] = b"encryptoglyph/hkdf-salt/v2";
 
@@ -183,7 +187,7 @@ pub struct Header<'a> {
 fn nonce_len(alg: u8) -> Option<usize> {
     match alg {
         ALG_AES256GCM => Some(12),
-        ALG_XCHACHA20POLY1305 => Some(24),
+        ALG_XCHACHA20POLY1305 | ALG_XCHACHA20POLY1305_COMMIT => Some(24),
         _ => None,
     }
 }
@@ -195,14 +199,21 @@ pub fn parse_header(blob: &[u8]) -> Result<Header<'_>, Error> {
     let (version, alg, klen) = (blob[2], blob[3], blob[4] as usize);
     let ok = matches!(
         (version, alg),
-        (VERSION_LEGACY, ALG_AES256GCM) | (VERSION_V2, ALG_XCHACHA20POLY1305)
+        (VERSION_LEGACY, ALG_AES256GCM)
+            | (VERSION_V2, ALG_XCHACHA20POLY1305)
+            | (VERSION_V3, ALG_XCHACHA20POLY1305_COMMIT)
     );
     if !ok {
         return Err(Error::Decrypt);
     }
     let n = nonce_len(alg).ok_or(Error::Decrypt)?;
     let off = 5 + klen;
-    if blob.len() < off + n + 16 {
+    let extra = if alg == ALG_XCHACHA20POLY1305_COMMIT {
+        COMMIT_LEN
+    } else {
+        0
+    };
+    if blob.len() < off + n + extra + 16 {
         return Err(Error::Decrypt);
     }
     let kid = std::str::from_utf8(&blob[5..off]).map_err(|_| Error::Decrypt)?;
@@ -224,7 +235,58 @@ fn header(version: u8, alg: u8, kid: &str, nonce: &[u8]) -> Vec<u8> {
     h
 }
 
+type KeyPair = (Zeroizing<[u8; KEY_LEN]>, Zeroizing<[u8; KEY_LEN]>);
+
+/// v3: split the DEK into an AEAD key and a commitment key (HKDF-SHA256, salt = nonce).
+fn commit_keys(dek: &[u8], nonce: &[u8]) -> Result<KeyPair, Error> {
+    let hk = Hkdf::<Sha256>::new(Some(nonce), dek);
+    let mut enc = Zeroizing::new([0u8; KEY_LEN]);
+    let mut com = Zeroizing::new([0u8; KEY_LEN]);
+    hk.expand(b"encryptoglyph/v3/enc", enc.as_mut())
+        .map_err(|_| Error::InvalidKey)?;
+    hk.expand(b"encryptoglyph/v3/commit", com.as_mut())
+        .map_err(|_| Error::InvalidKey)?;
+    Ok((enc, com))
+}
+
+fn commitment(commit_key: &[u8], aad: &[u8]) -> [u8; COMMIT_LEN] {
+    let mut m =
+        <Hmac<Sha256> as Mac>::new_from_slice(commit_key).expect("hmac accepts any key length");
+    m.update(b"EGCMT1");
+    m.update(aad);
+    m.finalize().into_bytes().into()
+}
+
+/// Default writer: v3 key-committing envelope. The commitment binds key, nonce, header and
+/// record context, so a ciphertext cannot be crafted to decrypt validly under two keys.
 pub fn encrypt(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, Error> {
+    let dek = kr.derive(
+        kr.current(),
+        &ctx.purpose,
+        &ctx.tenant,
+        ALG_XCHACHA20POLY1305_COMMIT,
+    )?;
+    let mut nonce = [0u8; 24];
+    getrandom::getrandom(&mut nonce).map_err(|_| Error::InvalidArgument)?;
+    let mut out = header(
+        VERSION_V3,
+        ALG_XCHACHA20POLY1305_COMMIT,
+        kr.current(),
+        &nonce,
+    );
+    let mut aad = out.clone();
+    aad.extend_from_slice(&ctx.aad());
+    let (enc, com) = commit_keys(dek.as_ref(), &nonce)?;
+    let ct = XChaCha20Poly1305::new(enc.as_ref().into())
+        .encrypt(XNonce::from_slice(&nonce), Payload { msg: pt, aad: &aad })
+        .map_err(|_| Error::InvalidArgument)?;
+    out.extend_from_slice(&commitment(com.as_ref(), &aad));
+    out.extend_from_slice(&ct);
+    Ok(out)
+}
+
+/// v2 writer (no key commitment), for tests and interop only.
+pub fn encrypt_v2(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, Error> {
     let key = kr.derive(
         kr.current(),
         &ctx.purpose,
@@ -279,6 +341,20 @@ pub fn decrypt(
         aad: &aad,
     };
     let r = match h.alg {
+        ALG_XCHACHA20POLY1305_COMMIT => {
+            let (enc, com) = commit_keys(key.as_ref(), h.nonce)?;
+            let (tag, body) = h.body.split_at(COMMIT_LEN);
+            if !ct_equal(tag, &commitment(com.as_ref(), &aad)) {
+                return Err(Error::Decrypt);
+            }
+            XChaCha20Poly1305::new(enc.as_ref().into()).decrypt(
+                XNonce::from_slice(h.nonce),
+                Payload {
+                    msg: body,
+                    aad: &aad,
+                },
+            )
+        }
         ALG_XCHACHA20POLY1305 => {
             XChaCha20Poly1305::new(key.as_ref().into()).decrypt(XNonce::from_slice(h.nonce), p)
         }
@@ -289,7 +365,7 @@ pub fn decrypt(
 
 pub fn needs_rewrap(kr: &Keyring, blob: &[u8]) -> Result<bool, Error> {
     let h = parse_header(blob)?;
-    Ok(h.version < VERSION_V2 || h.kid != kr.current())
+    Ok(h.version < VERSION_V3 || h.kid != kr.current())
 }
 
 pub fn rewrap(kr: &Keyring, ctx: &RecordContext, blob: &[u8]) -> Result<Vec<u8>, Error> {
