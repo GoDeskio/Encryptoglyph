@@ -73,3 +73,8 @@ Lacks (vs the field): KMS/HSM backends, envelope data keys with KEK wrapping, ke
 - OK to depend on: Apache-2.0, MIT, BSD, ISC, MPL-2.0 (file-level, unmodified) crates such as RustCrypto, aws-lc-rs, libsodium bindings, ring, Tink-rs designs.
 - Design study only, never copy code: Vault (BUSL), libsignal (AGPL), Standard Notes (AGPL), Proton clients (GPL), Cryptomator (GPL), CipherStash Proxy (source-available), any closed SaaS.
 - Enforce with `cargo-deny` license allow-list in CI (backlog #1).
+
+## 5. REA (Reverse Engineer Anything) status
+- Version pinned: `rea-agents@6.5.0` (local clone 42fc6c53a). It has not been run yet.
+- Lab: none available on 2026-10-31. The shared box has no Docker, Podman or VM, and the REA safe-lab rule forbids running it on the shared host. The "how it works" findings come from public docs, specs, whitepapers and open-source code.
+- Next: rerun in a snapshotted, credential-free lab VM against open-source projects and public clients. Roll back after each job. Never copy closed-source code into the tree.
