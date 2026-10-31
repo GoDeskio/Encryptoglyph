@@ -10,11 +10,8 @@ yanked = "deny"
 version = 2
 confidence-threshold = 0.9
 allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0", "Unicode-DFS-2016", "Zlib", "MPL-2.0", "CC0-1.0"]
-
-[[licenses.exceptions]]
-# Our own crate is proprietary.
-allow = ["LicenseRef-Proprietary"]
-crate = "encryptoglyph"
+# The encryptoglyph crate itself is Apache-2.0 (see Cargo.toml). scripts/check-license-metadata.py
+# rejects any other value. Do not add a LicenseRef-Proprietary exception.
 
 [bans]
 multiple-versions = "warn"
