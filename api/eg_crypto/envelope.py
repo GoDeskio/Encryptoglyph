@@ -25,11 +25,13 @@ import hmac
 import os
 from dataclasses import dataclass
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from nacl import bindings as sodium
 from nacl import pwhash
+from nacl.exceptions import CryptoError
 
 MAGIC = b"EG"
 VERSION_LEGACY = 1
@@ -177,7 +179,7 @@ def decrypt(keyring: Keyring, ctx: RecordContext, blob: bytes, *, min_version: i
         if alg == ALG_XCHACHA20POLY1305:
             return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(body, aad, nonce, key)
         return AESGCM(key).decrypt(nonce, body, aad)
-    except Exception:
+    except (CryptoError, InvalidTag, ValueError):
         raise DecryptError("decryption failed") from None
 
 
