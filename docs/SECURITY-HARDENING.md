@@ -4,6 +4,14 @@ Status of the data-encryption core (`api/eg_crypto`) and what comes next. Mirror
 Komboe AEAD v2 upgrade (GoDeskio/Komboe #74), but Encryptoglyph is not bound to the
 Bitwarden SDK, so it uses real **XChaCha20-Poly1305** (libsodium) instead of XAES-256-GCM.
 
+## Library shape
+Encryptoglyph is the single shared GoDesk crypto library (no separate SDK fork):
+- `crates/encryptoglyph` — Rust core (RustCrypto `chacha20poly1305`, `aes-gcm`, `hkdf`, `argon2`, `subtle`, `zeroize`; `#![forbid(unsafe_code)]`). Source of truth.
+- `wasm` feature + `bindings/ts` — WASM build and TypeScript wrapper for web vaults, extensions, desktop, and Node.
+- `api/eg_crypto` — Python implementation, wire-compatible (to become a PyO3 binding of the core).
+- `testvectors/envelope.json` — shared vectors checked by Rust and Python tests.
+- Komboe adoption plan: `docs/design/komboe-integration.md`.
+
 ## Done in this change
 | Control | Implementation |
 |---|---|
@@ -26,7 +34,7 @@ Tests: `api/tests/test_crypto.py` (round-trip, nonce uniqueness, tamper every he
 2. **Envelope encryption per site:** one KEK per site in OpenBao, per-record or per-table DEKs wrapped by it; store the wrapped DEK + KEK version next to data; bulk rewrap worker (`eg-worker`) with progress and evidence records.
 3. **Post-quantum hybrid:** for key exchange/transport (agent enrolment, escrow bundles) use X25519 + ML-KEM-768 hybrid (FIPS 203) once a vetted library is available in our stacks (liboqs / OpenSSL 3.5+ / age PQ plugin). Symmetric XChaCha20-Poly1305 with 256-bit keys is already PQ-adequate.
 4. **Key commitment:** Poly1305/GCM aren't key-committing. Add a commitment tag (HMAC of key id + nonce under a derived key) if multi-key/partitioning-oracle scenarios arise.
-5. **Memory hygiene:** Python can't reliably zeroise; move hot paths to a Rust (RustCrypto/`chacha20poly1305`, `zeroize`) or libsodium-native module with `mlock`.
-6. **SDKs:** port the same wire format to Node (libsodium-wrappers) and Go; ship cross-language test vectors.
+5. **Memory hygiene:** the Rust core zeroises keys; replace the pure-Python path with a PyO3 binding of the core.
+6. **Bindings:** publish the WASM/TS package to the internal registry with a CI wasm-pack build + TS vector test; add UniFFI (mobile) and a Go binding if needed.
 7. **Ittia and other GoDesk sites:** adopt `eg_crypto` v2 (or the SDKs) for field-level encryption of tokens and PII.
 8. **Audit:** third-party crypto review of this design + the M6 pentest; fuzz `parse_header`; add CI dependency/license scan.
