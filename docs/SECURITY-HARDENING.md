@@ -38,3 +38,4 @@ Tests: `api/tests/test_crypto.py` (round-trip, nonce uniqueness, tamper every he
 6. **Bindings:** publish the WASM/TS package to the internal registry with a CI wasm-pack build + TS vector test; add UniFFI (mobile) and a Go binding if needed.
 7. **Ittia and other GoDesk sites:** adopt `eg_crypto` v2 (or the SDKs) for field-level encryption of tokens and PII.
 8. **Audit:** third-party crypto review of this design + the M6 pentest; fuzz `parse_header`; add CI dependency/license scan.
+9. **CI for the Rust core/WASM:** the push token lacks `workflow` scope, so `.github/workflows/ci.yml` still runs only the Python jobs. Add a `rust-core` job (`cargo fmt --check`, `clippy -D warnings`, `cargo test`, `cargo check --features wasm --target wasm32-unknown-unknown`, wasm-bindgen build + `node bindings/ts/vector-test.cjs`). Verified locally on 2026-10-31.
