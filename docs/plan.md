@@ -15,8 +15,8 @@ The tenant model is **tenant → site → device**. Each tenant gets an OpenBao 
             Traefik (HTTPS, house certs) ── Authentik/Authelia forward-auth (admin UI only)
                         │
       ┌─────────────────┴──────────────────┐
-      │  eg-console (Node/TS, Next or Vite SPA)   ← GoDesk-proprietary
-      │  eg-api (Python FastAPI)                  ← GoDesk-proprietary: RBAC, audit, orchestration
+      │  eg-console (Node/TS, Next or Vite SPA)   ← Apache-2.0
+      │  eg-api (Python FastAPI)                  ← Apache-2.0: RBAC, audit, orchestration
       │  eg-worker (Python, same image)           ← schedules: backups, rotation, restore tests
       └───────┬────────────────────┬───────┘
               │ Vault-compatible   │ Postgres (app state, audit index)
@@ -126,7 +126,7 @@ Repo GoDeskio/Encryptoglyph, base `main`. Open ONE ready-for-review PR "Scaffold
 ## 10. Decisions needed from Dustin
 1. **Create the repo** `GoDeskio/Encryptoglyph` (private, empty, `main`) and grant it to the Cursor GitHub app, or have Richard do it. This blocks M0.
 2. **Name:** buy encryptoglyph.com/.io/.dev after a registrar check and a trademark search?
-3. **License for GoDesk-owned code:** proprietary (all rights reserved) vs source-available (e.g. FSL/BSL-style with an Apache change date) vs open-core. This affects the SDK license too (permissive SDKs help adoption).
+3. **License for GoDesk-owned code:** decided — Apache License 2.0 for this repository (`LICENSE`, `NOTICE`). The SDK uses the same license.
 4. **IdP** for admin apps: Authentik or Authelia.
 5. **Agent language:** Go (single static binary, matches OpenBao/restic/age) vs Python (team familiarity).
 6. **Hosting model for the first customers:** GoDesk-hosted multi-tenant vs per-customer appliance VM.
