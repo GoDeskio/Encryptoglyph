@@ -83,6 +83,9 @@ impl RecordContext {
 pub struct Keyring {
     keys: BTreeMap<String, Zeroizing<[u8; KEY_LEN]>>,
     current: String,
+    /// Insertion order of kids (oldest first); drives `min_decryption_kid`.
+    order: Vec<String>,
+    min_decrypt: Option<String>,
 }
 
 impl Keyring {
@@ -90,6 +93,8 @@ impl Keyring {
         let mut k = Keyring {
             keys: BTreeMap::new(),
             current: String::new(),
+            order: Vec::new(),
+            min_decrypt: None,
         };
         k.add(kid, key, true)?;
         Ok(k)
@@ -108,7 +113,9 @@ impl Keyring {
         }
         let mut a = Zeroizing::new([0u8; KEY_LEN]);
         a.copy_from_slice(key);
-        self.keys.insert(kid.to_string(), a);
+        if self.keys.insert(kid.to_string(), a).is_none() {
+            self.order.push(kid.to_string());
+        }
         if make_current {
             self.current = kid.to_string();
         }
@@ -118,8 +125,43 @@ impl Keyring {
         if kid == self.current {
             return Err(Error::InvalidArgument);
         }
+        if self.min_decrypt.as_deref() == Some(kid) {
+            return Err(Error::InvalidArgument);
+        }
         self.keys.remove(kid);
+        self.order.retain(|k| k != kid);
         Ok(())
+    }
+
+    /// Refuse to decrypt envelopes under any kid added *before* `kid` (Transit-style
+    /// `min_decryption_version`). Keys stay in the ring, so the policy can be lowered
+    /// again (`clear_min_decryption_kid`) without data loss — unlike `retire`/shred.
+    /// `kid` must be present and at or before the current key.
+    pub fn set_min_decryption_kid(&mut self, kid: &str) -> Result<(), Error> {
+        let pos = self.position(kid).ok_or(Error::InvalidArgument)?;
+        let cur = self.position(&self.current).ok_or(Error::InvalidArgument)?;
+        if pos > cur {
+            return Err(Error::InvalidArgument);
+        }
+        self.min_decrypt = Some(kid.to_string());
+        Ok(())
+    }
+    pub fn clear_min_decryption_kid(&mut self) {
+        self.min_decrypt = None;
+    }
+    pub fn min_decryption_kid(&self) -> Option<&str> {
+        self.min_decrypt.as_deref()
+    }
+    /// True if envelopes under `kid` may be decrypted under the current policy.
+    pub fn can_decrypt(&self, kid: &str) -> bool {
+        match (self.position(kid), &self.min_decrypt) {
+            (None, _) => false,
+            (Some(_), None) => true,
+            (Some(p), Some(m)) => self.position(m).is_none_or(|mp| p >= mp),
+        }
+    }
+    fn position(&self, kid: &str) -> Option<usize> {
+        self.order.iter().position(|k| k == kid)
     }
     pub fn current(&self) -> &str {
         &self.current
@@ -269,6 +311,9 @@ pub fn decrypt(
 ) -> Result<Zeroizing<Vec<u8>>, Error> {
     let h = parse_header(blob)?;
     if h.version < min_version {
+        return Err(Error::Downgrade);
+    }
+    if kr.keys.contains_key(h.kid) && !kr.can_decrypt(h.kid) {
         return Err(Error::Downgrade);
     }
     let key = kr.derive(h.kid, &ctx.purpose, &ctx.tenant, h.alg)?;
