@@ -78,3 +78,24 @@ Lacks (vs the field): KMS/HSM backends, envelope data keys with KEK wrapping, ke
 - Version pinned: `rea-agents@6.5.0` (local clone 42fc6c53a). It has not been run yet.
 - Lab: none available on 2026-10-31. The shared box has no Docker, Podman or VM, and the REA safe-lab rule forbids running it on the shared host. The "how it works" findings come from public docs, specs, whitepapers and open-source code.
 - Next: rerun in a snapshotted, credential-free lab VM against open-source projects and public clients. Roll back after each job. Never copy closed-source code into the tree.
+
+## 6. REA findings + features to adopt (static scan 2026-10-31, rea-agents 6.5.0)
+
+Static only: OSS repos cloned and parsed with `analyze-javascript-application`; vendor sites inspected unauthenticated; Standard Notes desktop `app.asar` (official .deb) parsed inertly on the lab PC. Nothing executed. Raw summaries: `GoDeskio/rea-scans` → `encryptoglyph/reports/*.summary.json`.
+
+| Target | What the static graph / source shows | Adopt |
+|---|---|---|
+| AWS Encryption SDK (JS) | `branch-keystore-node` (hierarchical keyring: branch keys wrapped by KMS, authenticated encryption context), committing suites | #2 envelope KEK provider with *branch key* cache; #3 key commitment |
+| CipherStash (EQL) | `*OrdOre` / `*OrdOreQuery` bindings for every scalar type → ORE range queries next to blind indexes | #7 searchable: add typed equality + range index API surface |
+| Evervault | `attestationDoc`, `pcrManager`: client verifies enclave attestation (PCRs) before sending data | New #21: attested decrypt service (Nitro/SEV) – later |
+| Ubiq | `fpeEncryptDecrypt`, `structuredEncryptDecrypt`, `encryption-pipeline` | #9 FF1 FPE as a "structured" API |
+| Vault / OpenBao Transit (UI source) | `min_decryption_version`, rewrap, key versions per key | Add `min_decryption_kid` policy to `Keyring` (cheap, complements `rewrap`) |
+| VGS | Collect.js style iframe fields (bundle only core-js polyfills visible) | #8 tokenization: hosted-field capture later |
+| Standard Notes desktop | Electron asar parsed inertly; capacity-limited at 13,377 of 25,748 entries. Found `createEncryptedBackupFile`, `decryptBackupMetadataFile`, a `copyDecryptScript` offline recovery script, vault key options/rotation (`changeVaultKeyOptions`), passcode-gated actions (`authorizeBackupCreation`, `authorizeVaultDeletion`), and biometrics/keychain hooks | AGPL: design only. Adopt: (a) **offline decrypt/verify tool** that ships with exports so data can be recovered without the service; (b) **re-auth gate** before backup export, key deletion or shred |
+| Infisical | very large monorepo (2.5 GB); secret rotation + versioning | #14 stays L; keep in Komboe |
+
+Implemented from this scan:
+- **#5 tamper-evident audit log** — PR #5 (`encryptoglyph::audit`).
+- **#4 crypto-shredding** — `Keyring::shred` + `ShredReceipt` (receipt appended to the audit chain as erasure evidence).
+
+Next (ranked): #3 key commitment (S) → `min_decryption_kid` (S) → #2 envelope/branch-key KEK provider (M) → #7 typed equality/range indexes (M).
