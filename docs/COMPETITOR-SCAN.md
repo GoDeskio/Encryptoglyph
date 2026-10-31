@@ -91,7 +91,7 @@ Static only: OSS repos cloned and parsed with `analyze-javascript-application`; 
 | Ubiq | `fpeEncryptDecrypt`, `structuredEncryptDecrypt`, `encryption-pipeline` | #9 FF1 FPE as a "structured" API |
 | Vault / OpenBao Transit (UI source) | `min_decryption_version`, rewrap, key versions per key | Add `min_decryption_kid` policy to `Keyring` (cheap, complements `rewrap`) |
 | VGS | Collect.js style iframe fields (bundle only core-js polyfills visible) | #8 tokenization: hosted-field capture later |
-| Standard Notes desktop | Electron asar, local-first E2E (scan on lab PC) | Interop / export format ideas only |
+| Standard Notes desktop | Electron asar parsed inertly; capacity-limited at 13,377 of 25,748 entries. Found `createEncryptedBackupFile`, `decryptBackupMetadataFile`, a `copyDecryptScript` offline recovery script, vault key options/rotation (`changeVaultKeyOptions`), passcode-gated actions (`authorizeBackupCreation`, `authorizeVaultDeletion`), and biometrics/keychain hooks | AGPL: design only. Adopt: (a) **offline decrypt/verify tool** that ships with exports so data can be recovered without the service; (b) **re-auth gate** before backup export, key deletion or shred |
 | Infisical | very large monorepo (2.5 GB); secret rotation + versioning | #14 stays L; keep in Komboe |
 
 Implemented from this scan:
