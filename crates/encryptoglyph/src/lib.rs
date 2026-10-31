@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use subtle::ConstantTimeEq;
 use zeroize::Zeroizing;
 
+pub mod shamir;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
