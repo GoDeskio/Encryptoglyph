@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="720" viewBox="0 0 1100 720" role="img" aria-labelledby="title desc">
+  <title id="title">Encryptoglyph architecture</title>
+  <desc id="desc">External Traefik on proxy-net routes to the MSP console and the API. OpenBao, Postgres, and the restic rest-server stay on an internal network with no host ports. The Rust crate, Python module, and TypeScript wrapper share one XChaCha20-Poly1305 envelope.</desc>
+  <rect width="1100" height="720" fill="#f6f4ef"/>
+  <text x="36" y="40" fill="#1c1917" font-family="system-ui, Segoe UI, sans-serif" font-size="22" font-weight="700">Encryptoglyph deployment</text>
+  <text x="36" y="64" fill="#57534e" font-family="system-ui, Segoe UI, sans-serif" font-size="14">Compose skeleton in deploy/docker-compose.yml. Data services are not published on the host.</text>
+
+  <rect x="28" y="88" width="1044" height="248" rx="16" fill="#ecfdf5" stroke="#0f766e" stroke-width="1.5"/>
+  <text x="48" y="116" fill="#115e59" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="700">proxy-net</text>
+  <text x="140" y="116" fill="#3f6212" font-family="system-ui, Segoe UI, sans-serif" font-size="13">external network, TLS at Traefik, only the console and API join it</text>
+
+  <rect x="48" y="140" width="230" height="160" rx="12" fill="#ffffff" stroke="#0f766e"/>
+  <text x="68" y="176" fill="#115e59" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">Traefik</text>
+  <text x="68" y="202" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">external to this repo</text>
+  <text x="68" y="224" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">websecure, TLS</text>
+  <text x="68" y="246" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">eg.home.arpa</text>
+  <text x="68" y="268" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">eg-api.home.arpa</text>
+
+  <rect x="360" y="140" width="300" height="160" rx="12" fill="#ffffff" stroke="#0f766e"/>
+  <text x="380" y="176" fill="#115e59" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">eg-console</text>
+  <text x="380" y="202" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">MSP console</text>
+  <text x="380" y="224" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">Host eg.home.arpa</text>
+  <text x="380" y="246" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">port 80 on proxy-net</text>
+  <text x="380" y="272" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="13">image is a placeholder</text>
+
+  <rect x="742" y="140" width="300" height="160" rx="12" fill="#ffffff" stroke="#0f766e"/>
+  <text x="762" y="176" fill="#115e59" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">eg-api</text>
+  <text x="762" y="202" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">FastAPI, GET /healthz</text>
+  <text x="762" y="224" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">Host eg-api.home.arpa</text>
+  <text x="762" y="246" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">port 8000, proxy-net + internal</text>
+  <text x="762" y="272" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="13">OpenAPI and Swagger are off</text>
+
+  <line x1="278" y1="220" x2="360" y2="220" stroke="#0f766e" stroke-width="1.5"/>
+  <polygon points="360,220 350,215 350,225" fill="#0f766e"/>
+  <line x1="660" y1="220" x2="742" y2="220" stroke="#0f766e" stroke-width="1.5"/>
+  <polygon points="742,220 732,215 732,225" fill="#0f766e"/>
+
+  <rect x="28" y="360" width="1044" height="188" rx="16" fill="#fff7ed" stroke="#c2410c" stroke-width="1.5"/>
+  <text x="48" y="388" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="700">internal</text>
+  <text x="120" y="388" fill="#7c2d12" font-family="system-ui, Segoe UI, sans-serif" font-size="13">internal: true, no host ports. OpenBao, Postgres, and rest-server never join proxy-net.</text>
+
+  <rect x="48" y="408" width="300" height="112" rx="12" fill="#ffffff" stroke="#c2410c"/>
+  <text x="68" y="444" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">OpenBao</text>
+  <text x="68" y="468" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">key custody, UI disabled</text>
+  <text x="68" y="490" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">file storage, :8200 internal</text>
+
+  <rect x="400" y="408" width="300" height="112" rx="12" fill="#ffffff" stroke="#c2410c"/>
+  <text x="420" y="444" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">Postgres 16</text>
+  <text x="420" y="468" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">app state and audit index</text>
+  <text x="420" y="490" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">credentials from .env only</text>
+
+  <rect x="752" y="408" width="290" height="112" rx="12" fill="#ffffff" stroke="#c2410c"/>
+  <text x="772" y="444" fill="#9a3412" font-family="system-ui, Segoe UI, sans-serif" font-size="16" font-weight="700">restic rest-server</text>
+  <text x="772" y="468" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">encrypted backup target</text>
+  <text x="772" y="490" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">image tag 0.14.0, volume /data</text>
+
+  <rect x="28" y="572" width="1044" height="120" rx="16" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+  <text x="48" y="600" fill="#1e3a8a" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="700">shared envelope</text>
+  <text x="176" y="600" fill="#1e3a8a" font-family="system-ui, Segoe UI, sans-serif" font-size="13">XChaCha20-Poly1305 AEAD, HKDF-SHA256, Argon2id. Not a container.</text>
+
+  <rect x="48" y="616" width="300" height="56" rx="10" fill="#ffffff" stroke="#1d4ed8"/>
+  <text x="68" y="650" fill="#1e3a8a" font-family="system-ui, Segoe UI, sans-serif" font-size="15" font-weight="700">Rust crate</text>
+  <text x="188" y="650" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">crates/encryptoglyph</text>
+
+  <rect x="400" y="616" width="300" height="56" rx="10" fill="#ffffff" stroke="#1d4ed8"/>
+  <text x="420" y="650" fill="#1e3a8a" font-family="system-ui, Segoe UI, sans-serif" font-size="15" font-weight="700">Python</text>
+  <text x="500" y="650" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">api/eg_crypto</text>
+
+  <rect x="752" y="616" width="290" height="56" rx="10" fill="#ffffff" stroke="#1d4ed8"/>
+  <text x="772" y="650" fill="#1e3a8a" font-family="system-ui, Segoe UI, sans-serif" font-size="15" font-weight="700">TypeScript</text>
+  <text x="880" y="650" fill="#44403c" font-family="system-ui, Segoe UI, sans-serif" font-size="13">bindings/ts WASM</text>
+</svg>
