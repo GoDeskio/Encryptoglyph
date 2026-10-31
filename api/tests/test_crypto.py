@@ -145,3 +145,14 @@ def test_keyring_validation():
         Keyring({"k": b"short"}, "k")
     with pytest.raises(ValueError):
         Keyring({"k": os.urandom(32)}, "missing")
+
+
+def test_shared_vectors():
+    import json
+    from pathlib import Path
+    v = json.loads((Path(__file__).parents[2] / "testvectors/envelope.json").read_text())
+    kr = Keyring({v["kid"]: bytes.fromhex(v["key_hex"])}, v["kid"])
+    ctx = RecordContext(*v["ctx"])
+    for f in ("v2_hex", "v1_hex"):
+        assert decrypt(kr, ctx, bytes.fromhex(v[f])) == v["plaintext"].encode()
+    assert blind_index(bytes.fromhex(v["key_hex"]), "tenant-a", "email", "Foo@Example.com").hex() == v["blind_index_hex"]

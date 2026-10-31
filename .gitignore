@@ -7,3 +7,7 @@ __pycache__/
 venv/
 *.egg-info/
 .mypy_cache/
+target/
+bindings/ts/pkg/
+bindings/ts/node_modules/
+bindings/ts/dist/
