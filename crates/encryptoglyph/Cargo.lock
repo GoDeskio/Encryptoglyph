@@ -164,6 +164,7 @@ dependencies = [
 name = "encryptoglyph"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "argon2",
  "chacha20poly1305",
