@@ -20,6 +20,7 @@ use zeroize::Zeroizing;
 pub mod audit;
 #[cfg(feature = "wasm")]
 pub mod wasm;
+pub mod kek;
 
 pub const MAGIC: &[u8; 2] = b"EG";
 pub const VERSION_LEGACY: u8 = 1;
