@@ -14,6 +14,8 @@ default = []
 wasm = ["dep:wasm-bindgen", "getrandom/js"]
 
 [dependencies]
+rand_core = "0.6"
+aes = "0.8"
 ml-kem = "0.2"
 x25519-dalek = { version = "2", features = ["static_secrets", "zeroize"] }
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }

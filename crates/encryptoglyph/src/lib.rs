@@ -378,7 +378,7 @@ pub fn encrypt(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, 
     let mut aad = out.clone();
     aad.extend_from_slice(&ctx.aad());
     let (enc, com) = commit_keys(dek.as_ref(), &nonce)?;
-    let ct = XChaCha20Poly1305::new(enc.as_ref().into())
+    let ct = XChaCha20Poly1305::new((&*enc).into())
         .encrypt(XNonce::from_slice(&nonce), Payload { msg: pt, aad: &aad })
         .map_err(|_| Error::InvalidArgument)?;
     out.extend_from_slice(&commitment(com.as_ref(), &aad));
@@ -400,7 +400,7 @@ pub fn encrypt_v2(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8
     let mut out = header(VERSION_V2, ALG_XCHACHA20POLY1305, kr.current(), &nonce);
     let mut aad = out.clone();
     aad.extend_from_slice(&ctx.aad());
-    let ct = XChaCha20Poly1305::new(key.as_ref().into())
+    let ct = XChaCha20Poly1305::new((&*key).into())
         .encrypt(XNonce::from_slice(&nonce), Payload { msg: pt, aad: &aad })
         .map_err(|_| Error::InvalidArgument)?;
     out.extend_from_slice(&ct);
@@ -414,7 +414,7 @@ pub fn encrypt_legacy_v1(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result
     let mut out = header(VERSION_LEGACY, ALG_AES256GCM, kr.current(), &nonce);
     let mut aad = out.clone();
     aad.extend_from_slice(&ctx.aad());
-    let ct = Aes256Gcm::new(key.as_ref().into())
+    let ct = Aes256Gcm::new((&*key).into())
         .encrypt(
             aes_gcm::Nonce::from_slice(&nonce),
             Payload { msg: pt, aad: &aad },
@@ -451,7 +451,7 @@ pub fn decrypt(
             if !ct_equal(tag, &commitment(com.as_ref(), &aad)) {
                 return Err(Error::Decrypt);
             }
-            XChaCha20Poly1305::new(enc.as_ref().into()).decrypt(
+            XChaCha20Poly1305::new((&*enc).into()).decrypt(
                 XNonce::from_slice(h.nonce),
                 Payload {
                     msg: body,
@@ -460,9 +460,9 @@ pub fn decrypt(
             )
         }
         ALG_XCHACHA20POLY1305 => {
-            XChaCha20Poly1305::new(key.as_ref().into()).decrypt(XNonce::from_slice(h.nonce), p)
+            XChaCha20Poly1305::new((&*key).into()).decrypt(XNonce::from_slice(h.nonce), p)
         }
-        _ => Aes256Gcm::new(key.as_ref().into()).decrypt(aes_gcm::Nonce::from_slice(h.nonce), p),
+        _ => Aes256Gcm::new((&*key).into()).decrypt(aes_gcm::Nonce::from_slice(h.nonce), p),
     };
     r.map(Zeroizing::new).map_err(|_| Error::Decrypt)
 }

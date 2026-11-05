@@ -62,7 +62,7 @@ impl KekProvider for LocalKek {
         out.extend_from_slice(self.id.as_bytes());
         out.extend_from_slice(&nonce);
         let a = aad(&out, branch_kid);
-        let ct = XChaCha20Poly1305::new(self.key.as_ref().into())
+        let ct = XChaCha20Poly1305::new((&*self.key).into())
             .encrypt(XNonce::from_slice(&nonce), Payload { msg: key, aad: &a })
             .map_err(|_| Error::InvalidArgument)?;
         out.extend_from_slice(&ct);
@@ -80,7 +80,7 @@ impl KekProvider for LocalKek {
         let hdr = &w[..off + 24];
         let a = aad(hdr, branch_kid);
         let pt = Zeroizing::new(
-            XChaCha20Poly1305::new(self.key.as_ref().into())
+            XChaCha20Poly1305::new((&*self.key).into())
                 .decrypt(
                     XNonce::from_slice(&w[off..off + 24]),
                     Payload {
