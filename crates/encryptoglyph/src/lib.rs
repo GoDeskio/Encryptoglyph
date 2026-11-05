@@ -24,6 +24,7 @@ pub mod kek;
 pub mod index;
 pub mod stream;
 pub mod shamir;
+pub mod sign;
 
 pub const MAGIC: &[u8; 2] = b"EG";
 pub const VERSION_LEGACY: u8 = 1;

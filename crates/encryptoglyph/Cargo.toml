@@ -14,6 +14,7 @@ default = []
 wasm = ["dep:wasm-bindgen", "getrandom/js"]
 
 [dependencies]
+ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
 chacha20poly1305 = "0.10"
 aes-gcm = "0.10"
 hkdf = "0.12"
