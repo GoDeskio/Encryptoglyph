@@ -81,6 +81,24 @@ impl RecordContext {
     }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ShredReceipt {
+    pub kid: String,
+    pub fingerprint: String,
+    pub shredded_at_unix: u64,
+}
+
+impl ShredReceipt {
+    /// Canonical bytes for the audit log.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        format!(
+            "EGSHRED1|{}|{}|{}",
+            self.kid, self.fingerprint, self.shredded_at_unix
+        )
+        .into_bytes()
+    }
+}
+
 pub struct Keyring {
     keys: BTreeMap<String, Zeroizing<[u8; KEY_LEN]>>,
     current: String,
@@ -121,6 +139,34 @@ impl Keyring {
         }
         self.keys.remove(kid);
         Ok(())
+    }
+    /// Fingerprint of a key (SHA-256 over a label and the key, first 16 bytes, hex). Safe to log.
+    pub fn fingerprint(&self, kid: &str) -> Option<String> {
+        use sha2::Digest;
+        self.keys.get(kid).map(|k| {
+            let mut h = Sha256::new();
+            h.update(b"encryptoglyph/key-fingerprint/v1");
+            h.update(k.as_slice());
+            h.finalize()[..16]
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect()
+        })
+    }
+    /// Crypto-shredding (backlog #4): destroy a key so every record under it becomes unrecoverable.
+    /// The key bytes are zeroized on drop. The current key cannot be shredded (rotate first).
+    /// Returns a receipt; append `receipt.to_bytes()` to the audit chain as erasure evidence.
+    pub fn shred(&mut self, kid: &str, shredded_at_unix: u64) -> Result<ShredReceipt, Error> {
+        if kid == self.current {
+            return Err(Error::InvalidArgument);
+        }
+        let fingerprint = self.fingerprint(kid).ok_or(Error::InvalidArgument)?;
+        drop(self.keys.remove(kid));
+        Ok(ShredReceipt {
+            kid: kid.to_string(),
+            fingerprint,
+            shredded_at_unix,
+        })
     }
     pub fn current(&self) -> &str {
         &self.current
