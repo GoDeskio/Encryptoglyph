@@ -27,6 +27,7 @@ pub mod shamir;
 pub mod sign;
 pub mod ff1;
 pub mod pq;
+pub mod policy;
 
 pub const MAGIC: &[u8; 2] = b"EG";
 pub const VERSION_LEGACY: u8 = 1;
