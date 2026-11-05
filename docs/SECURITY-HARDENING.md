@@ -15,9 +15,9 @@ Encryptoglyph is the single shared GoDesk crypto library (no separate SDK fork):
 ## Done in this change
 | Control | Implementation |
 |---|---|
-| Versioned AEAD envelope | `EG` magic + version + alg + key id + nonce + ct/tag. v2 = XChaCha20-Poly1305-IETF (libsodium via PyNaCl), 192-bit random nonce, default for all new writes. |
+| Versioned AEAD envelope | `EG` magic + version + alg + key id + nonce + ct/tag. v3 (default for all new writes) = XChaCha20-Poly1305-IETF (libsodium via PyNaCl), 192-bit random nonce, plus a 32-byte **key commitment**: per message, HKDF-SHA256(DEK, salt=nonce) yields an AEAD key and a commitment key, and `HMAC-SHA256(commit_key, "EGCMT1" ‖ header ‖ context)` is stored before the ciphertext and checked in constant time before AEAD decryption. This prevents multi-key ("invisible salamander" / partitioning-oracle) attacks. v2 is the same without commitment (read-only, upgraded on rewrap). |
 | Backward-compatible decrypt | v1 = AES-256-GCM (96-bit nonce, pyca/cryptography), the format the plan's Tink-style SDK specified. Still decrypts; `needs_rewrap()` flags it. No v1 data existed in the repo before this change. |
-| Upgrade on read/unlock | `rewrap()` decrypts any supported version/key and re-encrypts as v2 under the current key. |
+| Upgrade on read/unlock | `rewrap()` decrypts any supported version/key and re-encrypts as v3 under the current key. Once a dataset is fully rewrapped, set `min_version=3` to refuse uncommitted envelopes. |
 | Downgrade guard | Header is authenticated as AAD (version/alg bytes can't be flipped); version↔alg pairing is enforced; `decrypt(min_version=2)` rejects legacy once migration is finished. |
 | Password-based keys | `derive_root_key_from_password()` = Argon2id (libsodium, MODERATE ops/mem by default), 16-byte random salt. |
 | Key separation | HKDF-SHA256 per root key / purpose / tenant / algorithm. Root keys never encrypt data directly. |

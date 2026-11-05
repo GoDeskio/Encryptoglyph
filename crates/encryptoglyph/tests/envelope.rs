@@ -18,7 +18,7 @@ fn kr() -> Keyring {
 fn roundtrip() {
     let k = kr();
     let b = encrypt(&k, &ctx(), b"secret").unwrap();
-    assert_eq!(parse_header(&b).unwrap().version, VERSION_V2);
+    assert_eq!(parse_header(&b).unwrap().version, VERSION_V3);
     assert_eq!(&decrypt(&k, &ctx(), &b, 1).unwrap()[..], b"secret");
 }
 #[test]
@@ -95,4 +95,48 @@ fn ct_and_blind_index() {
         blind_index(&k, "t", "email", "  Foo@Example.com ", 16),
         blind_index(&k, "t", "email", "foo@example.com", 16)
     );
+}
+
+#[test]
+fn v2_decrypts_and_upgrades_to_v3() {
+    let k = kr();
+    let old = encrypt_v2(&k, &ctx(), b"v2").unwrap();
+    assert_eq!(parse_header(&old).unwrap().version, VERSION_V2);
+    assert_eq!(&decrypt(&k, &ctx(), &old, 1).unwrap()[..], b"v2");
+    assert!(needs_rewrap(&k, &old).unwrap());
+    let new = rewrap(&k, &ctx(), &old).unwrap();
+    assert_eq!(parse_header(&new).unwrap().version, VERSION_V3);
+    assert_eq!(
+        decrypt(&k, &ctx(), &old, VERSION_V3).unwrap_err(),
+        Error::Downgrade
+    );
+}
+
+#[test]
+fn commitment_tamper_rejected() {
+    let k = kr();
+    let b = encrypt(&k, &ctx(), b"secret").unwrap();
+    let off = parse_header(&b).unwrap().header.len();
+    for i in [off, off + 31] {
+        let mut t = b.clone();
+        t[i] ^= 0x80;
+        assert_eq!(decrypt(&k, &ctx(), &t, 1).unwrap_err(), Error::Decrypt);
+    }
+}
+
+#[test]
+fn v3_truncated_into_commitment_rejected() {
+    let k = kr();
+    let b = encrypt(&k, &ctx(), b"x").unwrap();
+    let off = parse_header(&b).unwrap().header.len();
+    assert!(decrypt(&k, &ctx(), &b[..off + 40], 1).is_err());
+}
+
+#[test]
+fn rust_v3_matches_python_reader_format() {
+    // Body length = commitment + plaintext + tag.
+    let k = kr();
+    let b = encrypt(&k, &ctx(), b"abc").unwrap();
+    let h = parse_header(&b).unwrap();
+    assert_eq!(h.body.len(), COMMIT_LEN + 3 + 16);
 }
