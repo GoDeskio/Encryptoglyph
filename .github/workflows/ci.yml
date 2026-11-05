@@ -93,6 +93,10 @@ jobs:
       - name: Toolchain
         run: rustup toolchain install stable --profile minimal -c clippy && rustup default stable
 
+      - name: License fields and Cargo package metadata are Apache-2.0
+        working-directory: .
+        run: python3 scripts/check-license-metadata.py --require-cargo-metadata
+
       - name: Test
         run: cargo test --locked
 
@@ -106,4 +110,18 @@ jobs:
 
       - name: Licenses, advisories, bans and sources
         run: cargo deny check
+
+  license-metadata:
+    name: license-metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: License fields are Apache-2.0
+        run: python3 scripts/check-license-metadata.py
 
