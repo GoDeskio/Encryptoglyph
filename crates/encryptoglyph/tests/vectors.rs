@@ -24,7 +24,7 @@ fn python_vectors_decrypt_in_rust() {
         field: "ssn".into(),
         schema_version: 1,
     };
-    for f in ["v2_hex", "v1_hex"] {
+    for f in ["v3_hex", "v2_hex", "v1_hex"] {
         assert_eq!(
             &decrypt(&kr, &ctx, &hex(field(j, f)), 1).unwrap()[..],
             field(j, "plaintext").as_bytes()
