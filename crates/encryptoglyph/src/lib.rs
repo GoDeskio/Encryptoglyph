@@ -21,6 +21,7 @@ pub mod audit;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 pub mod kek;
+pub mod index;
 
 pub const MAGIC: &[u8; 2] = b"EG";
 pub const VERSION_LEGACY: u8 = 1;
