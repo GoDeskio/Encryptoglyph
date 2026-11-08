@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10151b">
+  <title>Encryptoglyph</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="glow" aria-hidden="true"></div>
+  <header class="top">
+    <a class="brand" href="#home" data-nav="home">
+      <svg viewBox="0 0 48 48" class="mark" aria-hidden="true">
+        <rect x="6" y="6" width="36" height="36" rx="12"></rect>
+        <path d="M16 30V18h8.5a5 5 0 0 1 0 10H16m8.2 2 6.8 0"></path>
+      </svg>
+      <span>Encryptoglyph</span>
+    </a>
+    <button class="btn menu" id="menu" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+    <nav id="nav-links" class="nav-links" aria-label="Primary">
+      <button type="button" data-nav="home" aria-current="page">Overview</button>
+      <button type="button" data-nav="seal">Seal</button>
+      <button type="button" data-nav="keys">Keys</button>
+      <button type="button" data-nav="custody">Custody</button>
+      <button type="button" data-nav="agent">Agent</button>
+      <button type="button" data-nav="adopt">Adopt</button>
+    </nav>
+  </header>
+
+  <main>
+    <section data-view-panel="home" id="view-home">
+      <div class="hero" data-testid="hero">
+        <p class="eyebrow">Encryption at rest</p>
+        <h1>Seal the field. Keep the key.</h1>
+        <p class="lede">Encryptoglyph wraps each value in an XChaCha20-Poly1305 envelope, derives the data key with HKDF, and leaves plaintext out of the assistant.</p>
+        <div class="hero-actions">
+          <button class="btn primary" type="button" data-nav="seal">Seal a field</button>
+          <button class="btn" type="button" data-nav="agent">Ask the agent</button>
+          <button class="btn" type="button" id="hero-update">Check for updates</button>
+        </div>
+        <p class="update" id="update-status" data-testid="update-status" role="status"></p>
+      </div>
+      <div class="grid" data-testid="feature-cards">
+        <article class="glass">
+          <h2>Field sealing</h2>
+          <p>Record context is authenticated with the ciphertext, so a blob cannot move to another row.</p>
+        </article>
+        <article class="glass">
+          <h2>Key fingerprints</h2>
+          <p>The console shows a fingerprint. The key bytes stay in process memory and are wiped on shred.</p>
+        </article>
+        <article class="glass">
+          <h2>Vaults that already seal passwords</h2>
+          <p><a href="https://komboe.com">Komboe</a> adopts this envelope for vault items.</p>
+        </article>
+        <article class="glass">
+          <h2>Encrypted file backup</h2>
+          <p>Inventory here is a sealed manifest. For whole-file backup, <a href="https://restic.net">restic</a> is the usual tool, and <a href="https://age-encryption.org">age</a> seals files.</p>
+        </article>
+        <article class="glass">
+          <h2>Drop into a GoDesk app</h2>
+          <p>A few lines adopt the same sidecar in <a href="https://github.com/GoDeskio/GitGoat">GitGoat</a>, <a href="https://github.com/GoDeskio/RailYard">RailYard</a>, <a href="https://github.com/GoDeskio/Portkyl">Portkyl</a>, and <a href="https://github.com/GoDeskio/Cerebro-Browser">Cerebro</a>.</p>
+        </article>
+      </div>
+    </section>
+
+    <section data-view-panel="seal" id="view-seal" hidden>
+      <header class="section-head">
+        <h1>Seal a field</h1>
+        <p>The value is sent only to the seal endpoint. The assistant never receives it.</p>
+      </header>
+      <form class="glass form" id="seal-form">
+        <div class="split">
+          <label>Tenant <input id="tenant" name="tenant" value="acme" autocomplete="off" required></label>
+          <label>Table <input id="table" name="table" value="customers" autocomplete="off" required></label>
+          <label>Record <input id="record" name="record" value="42" autocomplete="off" required></label>
+          <label>Field <input id="field" name="field" value="email" autocomplete="off" required></label>
+        </div>
+        <label>Value
+          <textarea id="plaintext" name="plaintext" rows="3" autocomplete="off" spellcheck="false" placeholder="Value to seal"></textarea>
+        </label>
+        <div class="row">
+          <button class="btn primary" type="submit">Seal</button>
+          <button class="btn" type="button" id="open-blob">Open</button>
+          <button class="btn" type="button" id="rewrap-blob">Rewrap</button>
+        </div>
+        <p id="seal-status" data-testid="seal-status" role="status"></p>
+        <label>Ciphertext
+          <textarea id="ciphertext" data-testid="ciphertext" rows="4" readonly></textarea>
+        </label>
+        <label>Opened value
+          <output id="opened" data-testid="opened"></output>
+        </label>
+      </form>
+      <form class="glass form" id="index-form">
+        <h2>Blind index</h2>
+        <p>Returns a truncated HMAC. The value is not stored and is not repeated in the result.</p>
+        <div class="row">
+          <label>Value <input id="index-value" autocomplete="off"></label>
+          <button class="btn" type="submit">Build index</button>
+        </div>
+        <p id="index-status" data-testid="index-status" role="status"></p>
+      </form>
+    </section>
+
+    <section data-view-panel="keys" id="view-keys" hidden>
+      <header class="section-head">
+        <h1>Keys</h1>
+        <p>New keys are random. This page lists fingerprints only.</p>
+      </header>
+      <div class="row">
+        <button class="btn primary" type="button" id="new-key">New key</button>
+      </div>
+      <div id="key-list" class="stack" data-testid="key-list"></div>
+      <form class="glass form" id="shred-form">
+        <h2>Shred a retired key</h2>
+        <p>Type the fingerprint of a key that is not current. The current key stays until you rotate.</p>
+        <label>Fingerprint <input id="shred-confirm" data-testid="shred-confirm" autocomplete="off" spellcheck="false"></label>
+        <p id="key-status" data-testid="key-status" role="status"></p>
+      </form>
+    </section>
+
+    <section data-view-panel="custody" id="view-custody" hidden>
+      <header class="section-head">
+        <h1>Custody</h1>
+        <p>This console holds session keys in process memory. It does not pretend a custody service is connected.</p>
+      </header>
+      <dl class="glass status" id="custody-status" data-testid="custody-status"></dl>
+      <div class="row">
+        <button class="btn primary" type="button" id="backup">Download sealed inventory</button>
+      </div>
+      <p id="backup-status" data-testid="backup-status" role="status"></p>
+    </section>
+
+    <section data-view-panel="agent" id="view-agent" hidden>
+      <header class="section-head">
+        <h1>Agent</h1>
+        <p>Commands run without a model. When Ollama is configured, it may only choose an action. It never sees values or keys.</p>
+      </header>
+      <div class="row wrap-row" id="agent-chips">
+        <button class="btn" type="button" data-agent="health">Health</button>
+        <button class="btn" type="button" data-agent="create a key">New key</button>
+        <button class="btn" type="button" data-agent="go to seal">Open seal</button>
+        <button class="btn" type="button" data-agent="go to keys">Open keys</button>
+        <button class="btn" type="button" data-agent="check updates">Check updates</button>
+        <button class="btn" type="button" data-agent="what can you do">What can you do</button>
+      </div>
+      <div class="glass transcript" id="transcript" data-testid="transcript" aria-live="polite"></div>
+      <form class="row" id="agent-form">
+        <label class="grow">Message
+          <input id="agent-input" data-testid="agent-input" autocomplete="off" maxlength="180">
+        </label>
+        <button class="btn primary" type="submit">Send</button>
+      </form>
+    </section>
+
+    <section data-view-panel="adopt" id="view-adopt" hidden>
+      <header class="section-head">
+        <h1>Adopt</h1>
+        <p>Same library in-process, or the versioned HTTP sidecar. See INTEGRATION.md.</p>
+      </header>
+      <article class="glass">
+        <h2>Python</h2>
+        <pre id="snippet-python" data-testid="snippet-python"></pre>
+      </article>
+      <article class="glass">
+        <h2>Sidecar</h2>
+        <pre id="snippet-http" data-testid="snippet-http"></pre>
+      </article>
+    </section>
+  </main>
+  <footer class="foot">
+    <span>Encryptoglyph</span>
+    <span id="foot-version"></span>
+    <span>Apache-2.0</span>
+  </footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>

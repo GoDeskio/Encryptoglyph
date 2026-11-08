@@ -158,6 +158,11 @@ def test_shared_vectors():
     for f in ("v3_hex", "v2_hex", "v1_hex"):
         assert decrypt(kr, ctx, bytes.fromhex(v[f])) == v["plaintext"].encode()
     assert blind_index(bytes.fromhex(v["key_hex"]), "tenant-a", "email", "Foo@Example.com").hex() == v["blind_index_hex"]
+    blob = bytes.fromhex(v["v3_hex"])
+    _ver, _alg, _kid, nonce, _hdr, _body = parse_header(blob)
+    from eg_crypto.envelope import encrypt_with_nonce
+
+    assert encrypt_with_nonce(kr, ctx, v["plaintext"].encode(), nonce) == blob
 
 
 # --- v3 key commitment -------------------------------------------------------

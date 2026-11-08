@@ -41,3 +41,21 @@ fn python_vectors_decrypt_in_rust() {
         hex(field(j, "blind_index_hex"))
     );
 }
+
+#[test]
+fn v3_known_answer_reseals_with_the_vector_nonce() {
+    let j = include_str!("../../../testvectors/envelope.json");
+    let blob = hex(field(j, "v3_hex"));
+    let kr = Keyring::new(field(j, "kid"), &hex(field(j, "key_hex"))).unwrap();
+    let ctx = RecordContext {
+        tenant: "tenant-a".into(),
+        purpose: "field-enc".into(),
+        table: "users".into(),
+        record_id: "42".into(),
+        field: "ssn".into(),
+        schema_version: 1,
+    };
+    let header = parse_header(&blob).unwrap();
+    let again = encrypt_with_nonce(&kr, &ctx, field(j, "plaintext").as_bytes(), header.nonce).unwrap();
+    assert_eq!(again, blob);
+}

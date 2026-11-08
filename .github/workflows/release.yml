@@ -1,0 +1,22 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: tag matches VERSION
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag matches VERSION
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          current="$(tr -d '[:space:]' < VERSION)"
+          test "$tag" = "$current"
