@@ -169,6 +169,12 @@ def _commitment(commit_key: bytes, aad: bytes) -> bytes:
     return hmac.new(commit_key, b"EGCMT1" + aad, hashlib.sha256).digest()
 
 
+def fingerprint(key: bytes) -> str:
+    """First 16 bytes of SHA-256(label || key), hex. Safe to log. Not the key."""
+    digest = hashlib.sha256(b"encryptoglyph/key-fingerprint/v1" + key).hexdigest()
+    return digest[:32]
+
+
 def encrypt(keyring: Keyring, ctx: RecordContext, plaintext: bytes) -> bytes:
     """Encrypt with the default v3 envelope: XChaCha20-Poly1305 plus a 32-byte key commitment.
 
@@ -176,9 +182,19 @@ def encrypt(keyring: Keyring, ctx: RecordContext, plaintext: bytes) -> bytes:
     one ciphertext cannot decrypt validly under two different keys (no partitioning-oracle or
     "invisible salamander" attacks).
     """
+    return encrypt_with_nonce(keyring, ctx, plaintext, os.urandom(24))
+
+
+def encrypt_with_nonce(keyring: Keyring, ctx: RecordContext, plaintext: bytes, nonce: bytes) -> bytes:
+    """v3 writer with a caller-supplied nonce.
+
+    Nonce reuse under one key destroys confidentiality. Known-answer tests use this.
+    Production callers use ``encrypt``.
+    """
+    if len(nonce) != 24:
+        raise ValueError("nonce must be 24 bytes")
     alg = ALG_XCHACHA20POLY1305_COMMIT
     dek = keyring.derive(keyring.current, ctx.purpose, ctx.tenant, alg)
-    nonce = os.urandom(24)
     hdr = _header(VERSION_V3, alg, keyring.current, nonce)
     aad = hdr + ctx.aad()
     enc_key, commit_key = _commit_keys(dek, nonce)
@@ -214,13 +230,19 @@ def decrypt(keyring: Keyring, ctx: RecordContext, blob: bytes, *, min_version: i
     try:
         if alg == ALG_XCHACHA20POLY1305_COMMIT:
             enc_key, commit_key = _commit_keys(key, nonce)
-            if not hmac.compare_digest(body[:_COMMIT_LEN], _commitment(commit_key, aad)):
+            expect = _commitment(commit_key, aad)
+            # Open the AEAD even when the commitment is wrong so the two
+            # failure classes take the same path.
+            opened = sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(
+                body[_COMMIT_LEN:], aad, nonce, enc_key
+            )
+            if not hmac.compare_digest(body[:_COMMIT_LEN], expect):
                 raise DecryptError("decryption failed")
-            return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(body[_COMMIT_LEN:], aad, nonce, enc_key)
+            return opened
         if alg == ALG_XCHACHA20POLY1305:
             return sodium.crypto_aead_xchacha20poly1305_ietf_decrypt(body, aad, nonce, key)
         return AESGCM(key).decrypt(nonce, body, aad)
-    except (CryptoError, InvalidTag, ValueError):
+    except (CryptoError, InvalidTag, ValueError, DecryptError):
         raise DecryptError("decryption failed") from None
 
 

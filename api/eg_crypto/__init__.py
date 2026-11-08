@@ -27,6 +27,7 @@ from .envelope import (
     rewrap,
     verify_blind_index,
 )
+from .reauth import ReauthGate, ReauthRequired
 
 __all__ = [
     "ALG_AES256GCM",
@@ -38,6 +39,8 @@ __all__ = [
     "DecryptError",
     "DowngradeError",
     "Keyring",
+    "ReauthGate",
+    "ReauthRequired",
     "RecordContext",
     "blind_index",
     "ct_equal",

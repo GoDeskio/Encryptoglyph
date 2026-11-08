@@ -16,7 +16,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-docker build -t "$image" -f api/Dockerfile api
+docker build -t "$image" -f api/Dockerfile .
 docker rm -f "$name" >/dev/null 2>&1 || true
 docker run -d --name "$name" -e "BUILD_SHA=${sha}" "$image" >/dev/null
 

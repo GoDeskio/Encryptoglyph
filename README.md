@@ -12,9 +12,9 @@ Encryptoglyph is an open-source encryption-at-rest library and self-hosted servi
 ## Features
 
 - **XChaCha20-Poly1305 AEAD.** New ciphertext uses a 192-bit nonce and a 256-bit key. The header carries a version, an algorithm id, and a key id. Legacy AES-256-GCM envelopes still decrypt, and `rewrap` upgrades them. Rust (`crates/encryptoglyph`) and Python (`api/eg_crypto`) share the wire format and the vectors in `testvectors/envelope.json`.
-- **Key custody.** The compose file runs OpenBao on an internal network for Transit keys and KV. The library itself has no escrow key and no master override. Root keys are 32 bytes, derived with HKDF-SHA256 per tenant, purpose, and algorithm, or from a password with Argon2id. The health-only API does not call OpenBao yet. The custody design is in [docs/plan.md](docs/plan.md) and [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
+- **Key custody.** The compose file runs OpenBao on an internal network for Transit keys and KV. The library itself has no escrow key and no master override. Root keys are 32 bytes, derived with HKDF-SHA256 per tenant, purpose, and algorithm, or from a password with Argon2id. The console and `/v1` sidecar do not call OpenBao. The custody design is in [docs/plan.md](docs/plan.md) and [docs/SECURITY-HARDENING.md](docs/SECURITY-HARDENING.md).
 - **Encrypted backup.** `restic/rest-server` sits on the same internal network as the backup target. Host ports are not published. Backup scheduling and restore evidence are described in the plan and are not implemented in this tree.
-- **MSP console.** Operators are meant to reach `eg-console` through Traefik at `eg.home.arpa`. The compose service is present. Its image is `encryptoglyph-console:placeholder`, and this repository does not contain a console UI.
+- **Console.** `console/` is the operator UI, served by the API at `/`. It seals fields, rotates and shreds keys, and runs a deterministic assistant. OpenBao and restic stay unwired until a deployment supplies them. The compose service builds the same image as the API.
 
 ## What this tree runs
 
@@ -23,13 +23,13 @@ Encryptoglyph is an open-source encryption-at-rest library and self-hosted servi
 | Rust envelope, HKDF, Argon2id, key rotation | Implemented and tested |
 | Python module, wire-compatible with Rust | Implemented and tested |
 | TypeScript wrapper over the WASM build | Source in `bindings/ts`; `wasm-pack` output is not committed |
-| `eg-api` container | `GET /healthz` only. Swagger, ReDoc, and `/openapi.json` are not served |
-| OpenBao, Postgres 16, restic rest-server | Images and config in `deploy/docker-compose.yml` |
-| MSP console | Service name and Traefik labels only |
+| `eg-api` container | `/healthz`, the `/v1` sidecar, and the console. Swagger, ReDoc, and `/openapi.json` are not served |
+| OpenBao, Postgres 16, restic rest-server | Images and config in `deploy/docker-compose.yml`. The console reports them as not connected |
+| Console | `console/`, served by the API. See [INTEGRATION.md](INTEGRATION.md) |
 
 ## Architecture
 
-Traefik is external. Only `eg-console` and `eg-api` join `proxy-net`. OpenBao, Postgres, and the restic rest-server stay on the `internal` network (`internal: true`), which has no route off the Docker host. The API container is the only app process that joins both networks. The crypto libraries are not containers. The API image copies `main.py` only, so the running container does not load `eg_crypto`.
+Traefik is external. Only `eg-console` and `eg-api` join `proxy-net`. OpenBao, Postgres, and the restic rest-server stay on the `internal` network (`internal: true`), which has no route off the Docker host. The API container is the only app process that joins both networks. The crypto libraries are not containers. The API image copies the console, `eg_crypto`, and the `/v1` service.
 
 ```mermaid
 flowchart TB
@@ -37,7 +37,7 @@ flowchart TB
   subgraph proxy [proxy-net]
     traefik[Traefik TLS, external]
     console["eg-console MSP console"]
-    api["eg-api GET /healthz"]
+    api["eg-api console and /v1"]
   end
   subgraph internal [internal network, no host ports]
     openbao[OpenBao key custody]
@@ -78,7 +78,7 @@ docker compose -f deploy/docker-compose.yml config
 
 `proxy-net` must already exist because the compose file marks it external. `docker compose config` is the check CI runs. Do not commit `.env`.
 
-`docker compose up` needs a local image named `encryptoglyph-console:placeholder`. That image is not published, and the console UI is not in this repository. OpenBao, Postgres, and rest-server also expect real values in `.env` before they will start.
+`docker compose up` builds `eg-api` and `eg-console` from `api/Dockerfile`. OpenBao, Postgres, and rest-server still expect real values in `.env` before they will start. The console does not require them.
 
 The API image is buildable on its own. It listens on port 8000 inside the container and, in the compose file, publishes no host port. This loopback publish is only for a local health check:
 
@@ -95,12 +95,14 @@ curl -sS http://127.0.0.1:8000/healthz
 
 A healthy process returns `{"status":"ok","build":"<12 hex chars>"}`. `/docs`, `/redoc`, `/openapi.json`, and `/swagger` are not served. That is checked by `scripts/assert-exposure.sh`.
 
-Without Docker, from `api/` with Python 3.12:
+Without Docker, from `api/` with Python 3.12. This serves `/healthz`, `/v1`, and the console at `/`:
 
 ```bash
 python -m pip install -r requirements.txt
 BUILD_SHA="$(git rev-parse --short=12 HEAD)" python -m uvicorn main:app --host 127.0.0.1 --port 8000
 ```
+
+Open `http://127.0.0.1:8000`. Adoption snippets are in [INTEGRATION.md](INTEGRATION.md). The assistant uses deterministic commands with no model. Set `OLLAMA_BASE_URL` when a local Ollama should choose those commands. It never receives plaintext or keys.
 
 ## API and SDKs
 
@@ -108,7 +110,7 @@ The HTTP API in this repository is the health check above. Envelope encryption i
 
 ### Rust
 
-`crates/encryptoglyph` is the source of truth. `unsafe` is forbidden. Default writes are version 2, XChaCha20-Poly1305.
+`crates/encryptoglyph` is the source of truth. `unsafe` is forbidden. Default writes are version 3, XChaCha20-Poly1305 with a key commitment.
 
 ```rust
 use encryptoglyph::{decrypt, encrypt, Keyring, RecordContext, VERSION_V2};
@@ -192,7 +194,7 @@ The package is `private` and is not published to npm from this repository. `bind
 - **Key separation.** A root key never encrypts plaintext directly. HKDF-SHA256 derives a data key from the root key, the purpose, the tenant, and the algorithm. Password root keys use Argon2id with a 16-byte salt.
 - **Rotation.** A `Keyring` encrypts with the current key id and can decrypt older ids. `rewrap` writes a fresh version-2 blob. The current key cannot be retired.
 - **Uniform failures.** Decrypt errors do not distinguish a bad tag from a malformed header.
-- **No backdoor in the library.** There is no escrow or override key in the Rust or Python code. Custody of root keys is an OpenBao operation, still outside the health-only API.
+- **No backdoor in the library.** There is no escrow or override key in the Rust or Python code. Custody of root keys is an OpenBao operation. This console keeps session keys in process memory and says so.
 - **Network.** Compose does not publish host ports. OpenBao's own UI is disabled. Postgres passwords come from the gitignored env file.
 - **Dependency licenses.** `cargo deny` allows Apache-2.0, MIT, BSD, ISC, MPL-2.0, Unicode, Zlib, and CC0. The check runs in CI.
 

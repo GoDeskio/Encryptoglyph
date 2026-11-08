@@ -25,6 +25,20 @@ Encryptoglyph runs the following third-party software unmodified. Attribute them
 - License: BSD 2-Clause License
 - Source: https://github.com/restic/rest-server
 
+## fpe
+
+- Project: fpe (FF1)
+- Use: Rust dependency of the format-preserving encryption wrapper
+- License: MIT OR Apache-2.0
+- Source: https://github.com/str4d/fpe
+
+## sharks
+
+- Project: sharks
+- Use: Rust dependency for Shamir secret sharing
+- License: MIT OR Apache-2.0
+- Source: https://github.com/c0dearm/sharks
+
 ## FastAPI
 
 - Project: FastAPI

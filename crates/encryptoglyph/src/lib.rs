@@ -361,25 +361,35 @@ fn commitment(commit_key: &[u8], aad: &[u8]) -> [u8; COMMIT_LEN] {
 /// Default writer: v3 key-committing envelope. The commitment binds key, nonce, header and
 /// record context, so a ciphertext cannot be crafted to decrypt validly under two keys.
 pub fn encrypt(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, Error> {
+    let mut nonce = [0u8; 24];
+    getrandom::getrandom(&mut nonce).map_err(|_| Error::InvalidArgument)?;
+    encrypt_with_nonce(kr, ctx, pt, &nonce)
+}
+
+/// v3 writer with a caller-supplied nonce. Nonce reuse under one key destroys
+/// confidentiality. Known-answer tests and cross-language vectors use this.
+/// Production callers use [`encrypt`], which draws a fresh nonce.
+pub fn encrypt_with_nonce(
+    kr: &Keyring,
+    ctx: &RecordContext,
+    pt: &[u8],
+    nonce: &[u8],
+) -> Result<Vec<u8>, Error> {
+    if nonce.len() != 24 {
+        return Err(Error::InvalidArgument);
+    }
     let dek = kr.derive(
         kr.current(),
         &ctx.purpose,
         &ctx.tenant,
         ALG_XCHACHA20POLY1305_COMMIT,
     )?;
-    let mut nonce = [0u8; 24];
-    getrandom::getrandom(&mut nonce).map_err(|_| Error::InvalidArgument)?;
-    let mut out = header(
-        VERSION_V3,
-        ALG_XCHACHA20POLY1305_COMMIT,
-        kr.current(),
-        &nonce,
-    );
+    let mut out = header(VERSION_V3, ALG_XCHACHA20POLY1305_COMMIT, kr.current(), nonce);
     let mut aad = out.clone();
     aad.extend_from_slice(&ctx.aad());
-    let (enc, com) = commit_keys(dek.as_ref(), &nonce)?;
+    let (enc, com) = commit_keys(dek.as_ref(), nonce)?;
     let ct = XChaCha20Poly1305::new((&*enc).into())
-        .encrypt(XNonce::from_slice(&nonce), Payload { msg: pt, aad: &aad })
+        .encrypt(XNonce::from_slice(nonce), Payload { msg: pt, aad: &aad })
         .map_err(|_| Error::InvalidArgument)?;
     out.extend_from_slice(&commitment(com.as_ref(), &aad));
     out.extend_from_slice(&ct);
@@ -387,7 +397,6 @@ pub fn encrypt(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, 
 }
 
 /// v2 writer (no key commitment), for tests and interop only.
-
 pub fn encrypt_v2(kr: &Keyring, ctx: &RecordContext, pt: &[u8]) -> Result<Vec<u8>, Error> {
     let key = kr.derive(
         kr.current(),
@@ -444,27 +453,37 @@ pub fn decrypt(
         msg: h.body,
         aad: &aad,
     };
-    let r = match h.alg {
+    let opened = match h.alg {
         ALG_XCHACHA20POLY1305_COMMIT => {
             let (enc, com) = commit_keys(key.as_ref(), h.nonce)?;
             let (tag, body) = h.body.split_at(COMMIT_LEN);
-            if !ct_equal(tag, &commitment(com.as_ref(), &aad)) {
-                return Err(Error::Decrypt);
-            }
-            XChaCha20Poly1305::new((&*enc).into()).decrypt(
+            // Always run the AEAD open and the commitment check. Returning
+            // before the AEAD would make a bad commitment faster than a bad tag.
+            let expect = commitment(com.as_ref(), &aad);
+            let plain = XChaCha20Poly1305::new((&*enc).into()).decrypt(
                 XNonce::from_slice(h.nonce),
                 Payload {
                     msg: body,
                     aad: &aad,
                 },
-            )
+            );
+            let commit_ok = ct_equal(tag, &expect);
+            match plain {
+                Ok(pt) if commit_ok => Ok(pt),
+                other => {
+                    drop(other);
+                    Err(Error::Decrypt)
+                }
+            }
         }
-        ALG_XCHACHA20POLY1305 => {
-            XChaCha20Poly1305::new((&*key).into()).decrypt(XNonce::from_slice(h.nonce), p)
-        }
-        _ => Aes256Gcm::new((&*key).into()).decrypt(aes_gcm::Nonce::from_slice(h.nonce), p),
-    };
-    r.map(Zeroizing::new).map_err(|_| Error::Decrypt)
+        ALG_XCHACHA20POLY1305 => XChaCha20Poly1305::new((&*key).into())
+            .decrypt(XNonce::from_slice(h.nonce), p)
+            .map_err(|_| Error::Decrypt),
+        _ => Aes256Gcm::new((&*key).into())
+            .decrypt(aes_gcm::Nonce::from_slice(h.nonce), p)
+            .map_err(|_| Error::Decrypt),
+    }?;
+    Ok(Zeroizing::new(opened))
 }
 
 pub fn needs_rewrap(kr: &Keyring, blob: &[u8]) -> Result<bool, Error> {
