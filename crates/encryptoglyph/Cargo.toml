@@ -30,4 +30,4 @@ zeroize = { version = "1.8", features = ["derive"] }
 getrandom = "0.2"
 wasm-bindgen = { version = "0.2", optional = true }
 fpe = "0.6.1"
-sharks = "0.5"
+blahaj = "0.7"

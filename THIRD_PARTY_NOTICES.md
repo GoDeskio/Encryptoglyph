@@ -32,12 +32,12 @@ Encryptoglyph runs the following third-party software unmodified. Attribute them
 - License: MIT OR Apache-2.0
 - Source: https://github.com/str4d/fpe
 
-## sharks
+## blahaj
 
-- Project: sharks
-- Use: Rust dependency for Shamir secret sharing
-- License: MIT OR Apache-2.0
-- Source: https://github.com/c0dearm/sharks
+- Project: blahaj
+- Use: Rust dependency for Shamir secret sharing (fixed fork of sharks)
+- License: MIT
+- Source: https://git.distrust.co/public/blahaj
 
 ## FastAPI
 

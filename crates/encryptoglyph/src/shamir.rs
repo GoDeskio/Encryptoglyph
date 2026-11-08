@@ -1,4 +1,6 @@
-//! Shamir threshold sharing via the `sharks` crate (GF(256), zeroizing shares).
+//! Shamir threshold sharing via the `blahaj` crate (GF(256), zeroizing shares).
+//! `blahaj` is the maintained fix for the coefficient-bias bug in `sharks` 0.5
+//! (RUSTSEC-2024-0398).
 //! Use it to split a root or KEK across custodians. Shares exist only where the
 //! key owner hands them out. This is not an escrow key and not a backdoor.
 //!
@@ -7,7 +9,7 @@
 //! duplicate or short. A substituted share can still interpolate to other
 //! bytes, so verify a key-check value before trusting the result.
 use crate::Error;
-use sharks::{Share, Sharks};
+use blahaj::{Share, Sharks};
 use zeroize::Zeroizing;
 
 const MAGIC: &[u8; 4] = b"EGSS";
